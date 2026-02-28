@@ -21,6 +21,15 @@ chat = client.chats.create(
     )
 )
 
+
+def extract_user_facts(user_query: str) -> list[str]:
+    response = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=f'Decide if this sentence contains long-term facts about the user that should be remembered: "{user_query}"\nAnswer return one fact per line in concise statements if YES, NO if there are no facts'
+    )
+
+    return response.text
+
 def send_message(msg: str, user: str):
     content = (f"USER NAME: {user}" # dynamic profile
                f"USER: {msg}") # actual message
@@ -31,13 +40,15 @@ def send_message(msg: str, user: str):
 
 
 def main():
-    while True:
-        msg = input()
+    print(repr(extract_user_facts("Hey since I'm a CS major I'm thinking of enrolling in ICS 80 what do you think?")))
 
-        if msg == "q":
-            return
+    # while True:
+    #     msg = input()
 
-        print(send_message(msg, "Ben"))
+    #     if msg == "q":
+    #         return
+
+    #     print(send_message(msg, "Ben"))
 
 if __name__ == "__main__":
     main()
