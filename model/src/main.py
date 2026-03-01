@@ -37,15 +37,19 @@ print("[SYSTEM] Loading Embedder...")
 embedder = SentenceTransformer("BAAI/bge-small-en")
 
 indexes: dict[str, IndexFlatIP] = {}
-documents: list[str] = []
+documents: dict[str, list[str]] = {}
 
-def extract_user_facts(user_query: str) -> list[str]:
+def extract_user_facts(user_query: str) -> list[str] | None:
     response = client.models.generate_content(
         model="gemini-3-flash-preview",
-        contents=f'Decide if this sentence contains a long-term fact about the user that should be remembered: "{user_query}"\nAnswer return one fact per line in concise statements if YES, NO if there are no facts'
+        contents=("From the following text, extract stable, long-term facts about the user.\n"
+                  "Ignore temporary states, emotions, or situational context.\n"
+                  "Return one concise fact per line.\n"
+                  'Return "NO" if none exist.\n'
+                  f'Text: "{user_query}"')
     )
 
-    if response.text == "NO":
+    if response.text.strip().upper().startswith("NO"):
         return None
 
     return response.text.split("\n")
@@ -55,7 +59,10 @@ def generate_content(msg: str, user: str) -> str:
     content = f"USER NAME: {user}\n"
 
     if user not in indexes:
-        indexes[user] = IndexFlatIP(384)
+        indexes[user] = IndexFlatIP(INDEX_DIMENSIONS)
+
+    if user not in documents:
+        documents[user] = []
 
     embedding = embedder.encode(["Represent this user memory for searching relevant passages: " + msg], normalize_embeddings=True)
     lims, scores, indices = indexes[user].range_search(np.array(embedding), 0.8)
@@ -64,7 +71,7 @@ def generate_content(msg: str, user: str) -> str:
         # add relevant memories to content
         content += "USER PROFILE:\n"
         for i in indices:
-            content += f"- {documents[i]}\n"
+            content += f"- {documents[user][i]}\n"
 
     facts = extract_user_facts(msg)
 
@@ -79,13 +86,13 @@ def generate_content(msg: str, user: str) -> str:
         non_duplicate_facts = []
 
         for i in range(len(lims) - 1):
-            if (lims[i + 1] - lims[i] == 0):
+            if (lims[i + 1] - lims[i] == 0): # keeps facts with NO matches
                 non_duplicate_embeddings.append(embeddings[i])
                 non_duplicate_facts.append(facts[i])
 
         if len(non_duplicate_embeddings) != 0:
             indexes[user].add(np.array(non_duplicate_embeddings))
-            documents.extend(non_duplicate_facts)
+            documents[user].extend(non_duplicate_facts)
         
 
     content += f"USER: {msg}" # actual message
@@ -95,15 +102,11 @@ def generate_content(msg: str, user: str) -> str:
 def send_message(msg: str, user: str) -> str:
     # every now and then, resend system instruction
 
-    # TODO: extract user facts from message
-
     content = generate_content(msg, user)
 
-    return content
+    response = chat.send_message(content)
 
-    # response = chat.send_message(content)
-
-    # return response.text
+    return response.text
 
 def main() -> None:
     print("[SYSTEM] Ready!")
