@@ -1,5 +1,7 @@
 print("[SYSTEM] Initializing API...")
 
+from fastapi import FastAPI
+
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -7,6 +9,7 @@ from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from faiss import IndexFlatIP
 import numpy as np
+
 
 import os
 
@@ -38,6 +41,9 @@ embedder = SentenceTransformer("BAAI/bge-small-en")
 
 indexes: dict[str, IndexFlatIP] = {}
 documents: dict[str, list[str]] = {}
+
+print("[SYSTEM] Initializing Fast API...")
+app = FastAPI()
 
 def extract_user_facts(user_query: str) -> list[str] | None:
     response = client.models.generate_content(
@@ -110,21 +116,38 @@ def send_message(msg: str, user: str) -> str:
 
     return response.text
 
-def main() -> None:
-    print("[SYSTEM] Ready!")
+@app.post("/model")
+def receive_data(data: dict):
+    user: str = data["user"]
+    message: str = data["message"]
 
-    while True:
-        user = input("User: ")
-        message = input("Message: ")
-        print()
+    response = send_message(message, user)
 
-        if message == "q":
-            return
+    print(f"[SYSTEM] MODEL RESPONSE: {response}")
+    print()
+    print(f"[SYSTEM] Document: {documents}")
+    print()
 
-        print(f"[SYSTEM] MODEL RESPONSE: {send_message(message, user)}")
-        print()
-        print(f"[SYSTEM] Document: {documents}")
-        print()
+    return response
 
-if __name__ == "__main__":
-    main()
+
+print("[SYSTEM] Ready!")
+
+# def main() -> None:
+#     print("[SYSTEM] Ready!")
+
+#     while True:
+#         user = input("User: ")
+#         message = input("Message: ")
+#         print()
+
+#         if message == "q":
+#             return
+
+#         print(f"[SYSTEM] MODEL RESPONSE: {send_message(message, user)}")
+#         print()
+#         print(f"[SYSTEM] Document: {documents}")
+#         print()
+
+# if __name__ == "__main__":
+#     main()
