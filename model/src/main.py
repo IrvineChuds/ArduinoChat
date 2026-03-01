@@ -41,7 +41,7 @@ documents: dict[str, list[str]] = {}
 
 def extract_user_facts(user_query: str) -> list[str] | None:
     response = client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model=MODEL,
         contents=("From the following text, extract stable, long-term facts about the user.\n"
                   "Ignore temporary states, emotions, or situational context.\n"
                   "Return one concise fact per line.\n"
@@ -65,13 +65,14 @@ def generate_content(msg: str, user: str) -> str:
         documents[user] = []
 
     embedding = embedder.encode(["Represent this user memory for searching relevant passages: " + msg], normalize_embeddings=True)
-    lims, scores, indices = indexes[user].range_search(np.array(embedding), 0.8)
+    lims, _, indices = indexes[user].range_search(np.array(embedding), 0.8)
 
     if len(indices) != 0:
         # add relevant memories to content
         content += "USER PROFILE:\n"
         for i in indices:
             content += f"- {documents[user][i]}\n"
+            print(f"[SYSTEM] USER PROFILE SENT: {documents[user][i]}")
 
     facts = extract_user_facts(msg)
 
@@ -101,6 +102,7 @@ def generate_content(msg: str, user: str) -> str:
 
 def send_message(msg: str, user: str) -> str:
     # every now and then, resend system instruction
+    print(f"[SYSTEM] USER ({user}) SENT: {msg}")
 
     content = generate_content(msg, user)
 
@@ -112,13 +114,16 @@ def main() -> None:
     print("[SYSTEM] Ready!")
 
     while True:
-        message = input()
+        user = input("User: ")
+        message = input("Message: ")
         print()
 
         if message == "q":
             return
 
-        print(send_message(message, "Jaden"))
+        print(f"[SYSTEM] MODEL RESPONSE: {send_message(message, user)}")
+        print()
+        print(f"[SYSTEM] Document: {documents}")
         print()
 
 if __name__ == "__main__":
