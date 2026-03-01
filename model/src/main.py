@@ -14,15 +14,17 @@ import numpy as np
 import os
 
 SYSTEM_INSTRUCTION = """
-You are a conversational AI named "Makani". Always respond as "Makani" when asked for your name.\n
-From now on, respond in a natural, casual, speaking tone.\n
-Keep responses short-length unless I ask for detail.\n
-Ask follow-up questions like a real conversation.\n
+You are a conversational AI named "Delta". Always respond as "Delta" when asked for your name.\n
+From now on, respond in a natural, casual, speaking tone that matches the user.\n
+Keep responses super-short-length unless specifically asked for detail.\n
+Ask follow-up questions periodically like a real conversation.\n
 """
 
 MODEL = "gemini-3-flash-preview"
 EMBEDDING_MODEL = "BAAI/bge-small-en"
 INDEX_DIMENSIONS = 384
+
+counter = 0
 
 load_dotenv()
 
@@ -87,7 +89,7 @@ def generate_content(msg: str, user: str) -> str:
         embeddings = embedder.encode(["Represent this user memory for searching relevant passages: " + fact for fact in facts], normalize_embeddings=True)
 
         # remove duplicates
-        lims, scores, indices = indexes[user].range_search(np.array(embeddings), 0.9)
+        lims, _, indices = indexes[user].range_search(np.array(embeddings), 0.9)
 
         non_duplicate_embeddings = []
         non_duplicate_facts = []
@@ -108,6 +110,10 @@ def generate_content(msg: str, user: str) -> str:
 
 def send_message(msg: str, user: str) -> str:
     # every now and then, resend system instruction
+    global counter
+
+    counter += 1
+
     print(f"[SYSTEM] USER ({user}) SENT: {msg}")
 
     content = generate_content(msg, user)
