@@ -14,10 +14,12 @@ import numpy as np
 import os
 
 SYSTEM_INSTRUCTION = """
-You are a conversational AI named "Delta". Always respond as "Delta" when asked for your name.\n
-From now on, respond in a natural, casual, speaking tone that matches the user.\n
-Keep responses super-short-length unless specifically asked for detail.\n
-Ask follow-up questions periodically like a real conversation.\n
+You are a conversational AI named "Delta". Always respond as "Delta" when asked for your name.
+From now on, respond in a natural, casual, speaking tone that matches the user.
+Keep responses super-short-length unless specifically asked for detail.
+Remember relevant user preferences and context during the conversation to personalize responses.
+Ask follow-up questions every 2-3 turns to keep the conversation flowing naturally.
+If unsure of an answer, respond honestly and casually instead of making up details.
 """
 
 MODEL = "gemini-3-flash-preview"
@@ -51,6 +53,7 @@ def extract_user_facts(user_query: str) -> list[str] | None:
     response = client.models.generate_content(
         model=MODEL,
         contents=("From the following text, extract stable, long-term facts about the user.\n"
+                  "Treat obvious typos as if they were spelled correctly.\n"
                   "Ignore temporary states, emotions, or situational context.\n"
                   "Return one concise fact per line.\n"
                   'Return "NO" if none exist.\n'

@@ -4,8 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
-from scipy.io.wavfile import write
-import whisper
+from faster_whisper import WhisperModel
 
 from yapper import PiperSpeaker, PiperVoiceUS
 
@@ -95,6 +94,7 @@ def record_one_utterance() -> np.ndarray:
 
 def main():
     engine = PiperSpeaker(voice=PiperVoiceUS.HFC_FEMALE)
+    whisper_model = WhisperModel("base", device="auto")
 
     while True:
         user = input("Name: ")
@@ -106,12 +106,13 @@ def main():
             return
 
         # 2) Transcribe once
-        whisper_model = whisper.load_model("base")
-        write(str(OUT_WAV), SAMPLE_RATE, audio)
+
+        audio_float = audio.flatten().astype(np.float32) / 32768.0
 
         print("Transcribing...")
-        result = whisper_model.transcribe(str(OUT_WAV))
-        user_text = result.get("text", "").strip()
+        segments, _ = whisper_model.transcribe(audio_float)
+
+        user_text = " ".join(seg.text for seg in segments).strip()
 
         if not user_text:
             print("Heard: [no speech detected]")
