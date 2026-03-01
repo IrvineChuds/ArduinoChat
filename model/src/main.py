@@ -14,16 +14,16 @@ import numpy as np
 import os
 
 SYSTEM_INSTRUCTION = """
-You are a conversational AI named "Delta". Always respond as "Delta" when asked for your name.
+You are a conversational AI named "Thaumazein". Always respond as "Thaumazein" when asked for your name.
 From now on, respond in a natural, casual, speaking tone that matches the user.
 Keep responses super-short-length unless specifically asked for detail.
 Remember relevant user preferences and context during the conversation to personalize responses.
-Ask follow-up questions every 2-3 turns to keep the conversation flowing naturally.
+Ask follow-up questions every 3 to 4 turns to keep the conversation flowing naturally.
 If unsure of an answer, respond honestly and casually instead of making up details.
 """
 
 MODEL = "gemini-3-flash-preview"
-EMBEDDING_MODEL = "BAAI/bge-small-en"
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 INDEX_DIMENSIONS = 384
 
 counter = 0
@@ -41,7 +41,7 @@ chat = client.chats.create(
 )
 
 print("[SYSTEM] Loading Embedder...")
-embedder = SentenceTransformer("BAAI/bge-small-en")
+embedder = SentenceTransformer(EMBEDDING_MODEL)
 
 indexes: dict[str, IndexFlatIP] = {}
 documents: dict[str, list[str]] = {}
@@ -75,8 +75,11 @@ def generate_content(msg: str, user: str) -> str:
     if user not in documents:
         documents[user] = []
 
-    embedding = embedder.encode(["Represent this user memory for searching relevant passages: " + msg], normalize_embeddings=True)
+    print("[SYSTEM] Encoding...")
+    embedding = embedder.encode(["Represent this sentence for searching relevant passages: " + msg], normalize_embeddings=True)
+    print("[SYSTEM] Searching...")
     lims, _, indices = indexes[user].range_search(np.array(embedding), 0.8)
+    print("[SYSTEM] Finished Search!")
 
     if len(indices) != 0:
         # add relevant memories to content
@@ -85,18 +88,25 @@ def generate_content(msg: str, user: str) -> str:
             content += f"- {documents[user][i]}\n"
             print(f"[SYSTEM] USER PROFILE SENT: {documents[user][i]}")
 
+    print("[SYSTEM] Extracting User Facts...")
     facts = extract_user_facts(msg)
+    print("[SYSTEM] Finished Exraction!")
 
     if facts is not None:
         # embed message for memory
-        embeddings = embedder.encode(["Represent this user memory for searching relevant passages: " + fact for fact in facts], normalize_embeddings=True)
+        print("[SYSTEM] Encoding...")
+        embeddings = embedder.encode(["Represent this sentence for searching relevant passages: " + fact for fact in facts], normalize_embeddings=True)
 
         # remove duplicates
+        print("[SYSTEM] Searching...")
         lims, _, indices = indexes[user].range_search(np.array(embeddings), 0.9)
+        print("[SYSTEM] Finished Search!")
+
 
         non_duplicate_embeddings = []
         non_duplicate_facts = []
 
+        print("[SYSTEM] Processing Facts")
         for i in range(len(lims) - 1):
             if (lims[i + 1] - lims[i] == 0): # keeps facts with NO matches
                 non_duplicate_embeddings.append(embeddings[i])
@@ -105,6 +115,8 @@ def generate_content(msg: str, user: str) -> str:
         if len(non_duplicate_embeddings) != 0:
             indexes[user].add(np.array(non_duplicate_embeddings))
             documents[user].extend(non_duplicate_facts)
+
+        print("[SYSTEM] Finished Processing!")
         
 
     content += f"USER: {msg}" # actual message
@@ -117,46 +129,39 @@ def send_message(msg: str, user: str) -> str:
 
     counter += 1
 
+    if (counter >= 10):
+        content = "Reminder: respond in a short, natural, speaking tone that matches the user.\n"
+        counter = 0
+    else:
+        content = ""
+
     print(f"[SYSTEM] USER ({user}) SENT: {msg}")
 
-    content = generate_content(msg, user)
+    content += generate_content(msg, user)
 
+    print("[SYSTEM] Querying...")
     response = chat.send_message(content)
+    print("[SYSTEM] Finished Query!")
 
     return response.text
 
 @app.post("/model")
 def receive_data(data: dict):
-    user: str = data["user"]
-    message: str = data["message"]
+    try:
+        user: str = data["user"]
+        message: str = data["message"]
 
-    response = send_message(message, user)
+        response = send_message(message, user)
 
-    print(f"[SYSTEM] MODEL RESPONSE: {response}")
-    print()
-    print(f"[SYSTEM] Document: {documents}")
-    print()
+        print(f"[SYSTEM] MODEL RESPONSE: {response}")
+        print()
+        print(f"[SYSTEM] Document: {documents}")
+        print()
 
-    return response
+        return response
+    except Exception as e:
+        print(f"[SYSTEM] Error: {e}")
+        return "Something went wrong, please try again later."
 
 
 print("[SYSTEM] Ready!")
-
-# def main() -> None:
-#     print("[SYSTEM] Ready!")
-
-#     while True:
-#         user = input("User: ")
-#         message = input("Message: ")
-#         print()
-
-#         if message == "q":
-#             return
-
-#         print(f"[SYSTEM] MODEL RESPONSE: {send_message(message, user)}")
-#         print()
-#         print(f"[SYSTEM] Document: {documents}")
-#         print()
-
-# if __name__ == "__main__":
-#     main()

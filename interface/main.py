@@ -94,7 +94,7 @@ def record_one_utterance() -> np.ndarray:
 
 def main():
     engine = PiperSpeaker(voice=PiperVoiceUS.HFC_FEMALE)
-    whisper_model = WhisperModel("base", device="auto")
+    whisper_model = WhisperModel("tiny.en", device="auto")
 
     while True:
         user = input("Name: ")
